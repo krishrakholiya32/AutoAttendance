@@ -83,6 +83,7 @@ npm run build
 
 ## Deployment
 
-Live on Oracle Cloud's Always Free tier (`VM.Standard.A1.Flex`, 4 OCPU / 24GB ARM Ampere),
-systemd service + Nginx + Postgres, matching the deployment pattern used across this
+Live at **https://autoattendance.zrik.tech** on Oracle Cloud's Always Free tier
+(`VM.Standard.A1.Flex`, 4 OCPU / 24GB ARM Ampere), systemd service + Nginx + Postgres +
+Let's Encrypt SSL (certbot, auto-renewing), matching the deployment pattern used across this
 portfolio's other projects (ClauseGuard, CaReSale, PptGen, kGPT).
