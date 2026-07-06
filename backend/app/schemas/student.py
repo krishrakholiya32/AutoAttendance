@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class StudentCreate(BaseModel):
@@ -9,14 +9,13 @@ class StudentCreate(BaseModel):
 
 
 class StudentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     roll_number: str
     created_at: datetime
     angles_captured: int = 0
-
-    class Config:
-        from_attributes = True
 
 
 class EnrollFaceResponse(BaseModel):

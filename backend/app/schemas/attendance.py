@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SessionCreate(BaseModel):
@@ -8,12 +8,11 @@ class SessionCreate(BaseModel):
 
 
 class SessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     session_date: date
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class MatchedStudent(BaseModel):

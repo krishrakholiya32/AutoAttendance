@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.courses import _get_owned_course
 from app.core.database import get_db
 from app.core.deps import get_current_professor
+from app.core.logging import get_logger
 from app.models.attendance import AttendanceRecord, AttendanceSession
 from app.models.embedding import FaceEmbedding
 from app.models.professor import Professor
@@ -21,6 +22,7 @@ from app.schemas.attendance import (
 from app.services.face_service import extract_all_embeddings, match_face
 
 router = APIRouter(prefix="/courses/{course_id}/attendance", tags=["attendance"])
+logger = get_logger(__name__)
 
 
 async def _get_owned_session(course_id: int, session_id: int, professor: Professor, db: AsyncSession) -> AttendanceSession:
@@ -73,7 +75,7 @@ async def mark_attendance(
     professor: Professor = Depends(get_current_professor),
     db: AsyncSession = Depends(get_db),
 ):
-    session = await _get_owned_session(course_id, session_id, professor, db)
+    await _get_owned_session(course_id, session_id, professor, db)
 
     image_bytes = await file.read()
     probe_embeddings = extract_all_embeddings(image_bytes)
@@ -113,6 +115,14 @@ async def mark_attendance(
         ))
 
     await db.commit()
+    logger.info(
+        "attendance_marked",
+        course_id=course_id,
+        session_id=session_id,
+        faces_detected=len(probe_embeddings),
+        matched_count=len(matched),
+        unmatched_count=unmatched_count,
+    )
     return MarkAttendanceResponse(matched=matched, unmatched_face_count=unmatched_count)
 
 

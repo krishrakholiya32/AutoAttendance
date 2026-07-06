@@ -8,6 +8,8 @@ pyjwt==2.10.1
 pwdlib[argon2]==0.2.1
 python-multipart==0.0.20
 alembic==1.18.5
+prometheus-fastapi-instrumentator==7.1.0
+structlog==26.1.0
 insightface==1.0.1
 onnxruntime==1.27.0
 opencv-python-headless==4.11.0.86

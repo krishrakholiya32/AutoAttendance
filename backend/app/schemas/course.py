@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class CourseCreate(BaseModel):
@@ -9,11 +9,10 @@ class CourseCreate(BaseModel):
 
 
 class CourseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     code: str
     created_at: datetime
     student_count: int = 0
-
-    class Config:
-        from_attributes = True

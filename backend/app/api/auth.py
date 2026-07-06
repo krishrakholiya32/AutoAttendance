@@ -4,11 +4,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_professor
+from app.core.logging import get_logger
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.professor import Professor
 from app.schemas.auth import LoginRequest, ProfessorOut, SignupRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = get_logger(__name__)
 
 
 @router.post("/signup", response_model=TokenResponse)
@@ -25,6 +27,7 @@ async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)):
     db.add(professor)
     await db.commit()
     await db.refresh(professor)
+    logger.info("professor_signup", professor_id=professor.id)
 
     token = create_access_token(professor.id)
     return TokenResponse(access_token=token)

@@ -5,16 +5,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api import attendance, auth, courses, students
 from app.core.config import settings
 from app.core.database import init_db
+from app.core.logging import configure_logging, get_logger
+
+configure_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    logger.info("app_startup")
     yield
+    logger.info("app_shutdown")
 
 
 app = FastAPI(title="AutoAttendance API", lifespan=lifespan)
@@ -26,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 app.include_router(auth.router)
 app.include_router(courses.router)

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class SignupRequest(BaseModel):
@@ -18,9 +18,8 @@ class TokenResponse(BaseModel):
 
 
 class ProfessorOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: str
     name: str
-
-    class Config:
-        from_attributes = True

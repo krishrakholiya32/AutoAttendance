@@ -6,3 +6,5 @@ dist/
 .scratch*/
 *.dump
 backend/scratch_backups/
+.pytest_cache/
+.ruff_cache/

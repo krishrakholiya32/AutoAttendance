@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, utcnow
 
 
 class Course(Base):
@@ -13,7 +13,7 @@ class Course(Base):
     professor_id: Mapped[int] = mapped_column(ForeignKey("professors.id"), index=True)
     name: Mapped[str] = mapped_column(String(255))
     code: Mapped[str] = mapped_column(String(50))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     professor = relationship("Professor", back_populates="courses")
     students = relationship("Student", back_populates="course", cascade="all, delete-orphan")

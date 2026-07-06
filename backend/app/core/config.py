@@ -1,10 +1,12 @@
 from typing import List
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
     database_url: str = "postgresql+asyncpg://autoattendance:autoattendance@postgres:5432/autoattendance"
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
@@ -19,9 +21,6 @@ class Settings(BaseSettings):
     # onto the closest enrolled student.
     face_match_threshold: float = 0.32
     max_embeddings_per_student: int = 5
-
-    class Config:
-        env_file = ".env"
 
     @field_validator("database_url", mode="before")
     @classmethod
