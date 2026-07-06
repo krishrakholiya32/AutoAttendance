@@ -8,7 +8,11 @@ services:
     # is the portable way to reach it from inside a container on native Linux
     # Docker (unlike Docker Desktop, "host.docker.internal" isn't built in).
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # Pinned to this file's own networks.default.ipam gateway below --
+      # "host-gateway" resolved to the *default* docker0 bridge's gateway
+      # here rather than this project's own compose network's gateway,
+      # which isn't reachable from a container on a different bridge.
+      - "host.docker.internal:172.28.5.1"
     depends_on:
       redis:
         condition: service_healthy
@@ -30,7 +34,11 @@ services:
     image: ghcr.io/krishrakholiya32/autoattendance-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # Pinned to this file's own networks.default.ipam gateway below --
+      # "host-gateway" resolved to the *default* docker0 bridge's gateway
+      # here rather than this project's own compose network's gateway,
+      # which isn't reachable from a container on a different bridge.
+      - "host.docker.internal:172.28.5.1"
     depends_on:
       redis:
         condition: service_healthy
@@ -129,3 +137,10 @@ volumes:
   tempodata:
   lokidata:
   grafanadata:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.5.0/24
+          gateway: 172.28.5.1
