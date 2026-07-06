@@ -13,6 +13,7 @@ prometheus-fastapi-instrumentator==7.1.0
 structlog==26.1.0
 httpx==0.28.1
 numpy==2.2.4
+arq==0.28.0
 
 # Face detection/embedding/liveness (insightface, onnxruntime,
 # opencv-python-headless) moved entirely to face-worker/ as of Phase 4 --

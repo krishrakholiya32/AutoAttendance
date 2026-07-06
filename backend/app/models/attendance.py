@@ -18,6 +18,7 @@ class AttendanceSession(Base):
 
     course = relationship("Course", back_populates="sessions")
     records = relationship("AttendanceRecord", back_populates="session", cascade="all, delete-orphan")
+    jobs = relationship("AttendanceJob", back_populates="session", cascade="all, delete-orphan")
 
 
 class AttendanceRecord(Base):

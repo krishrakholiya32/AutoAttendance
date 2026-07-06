@@ -1,4 +1,5 @@
 from app.models.attendance import AttendanceRecord, AttendanceSession
+from app.models.attendance_job import AttendanceJob
 from app.models.course import Course
 from app.models.embedding import FaceEmbedding
 from app.models.professor import Professor
@@ -11,4 +12,5 @@ __all__ = [
     "FaceEmbedding",
     "AttendanceSession",
     "AttendanceRecord",
+    "AttendanceJob",
 ]

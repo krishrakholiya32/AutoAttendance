@@ -34,3 +34,15 @@ class AttendanceRecordOut(BaseModel):
     roll_number: str
     present: bool
     confidence: float | None = None
+
+
+class MarkJobAccepted(BaseModel):
+    job_id: int
+    status: str
+
+
+class JobStatusResponse(BaseModel):
+    job_id: int
+    status: str
+    result: MarkAttendanceResponse | None = None
+    error: str | None = None

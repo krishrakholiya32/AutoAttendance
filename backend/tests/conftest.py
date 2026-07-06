@@ -6,6 +6,7 @@ os.environ.setdefault(
 )
 os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 import pytest_asyncio
 import sqlalchemy as sa

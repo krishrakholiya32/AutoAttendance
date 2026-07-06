@@ -8,19 +8,18 @@ from app.api.courses import _get_owned_course
 from app.core.database import get_db
 from app.core.deps import get_current_professor
 from app.core.logging import get_logger
-from app.core.metrics import liveness_reject_total
 from app.models.attendance import AttendanceRecord, AttendanceSession
+from app.models.attendance_job import PENDING, AttendanceJob
 from app.models.professor import Professor
 from app.models.student import Student
 from app.schemas.attendance import (
     AttendanceRecordOut,
-    MarkAttendanceResponse,
-    MatchedStudent,
+    JobStatusResponse,
+    MarkJobAccepted,
     SessionCreate,
     SessionOut,
 )
-from app.services.face_client import extract_all_embeddings
-from app.services.matching import find_best_match
+from app.worker import get_redis_pool
 
 router = APIRouter(prefix="/courses/{course_id}/attendance", tags=["attendance"])
 logger = get_logger(__name__)
@@ -68,7 +67,7 @@ async def list_sessions(
     return rows.scalars().all()
 
 
-@router.post("/sessions/{session_id}/mark", response_model=MarkAttendanceResponse)
+@router.post("/sessions/{session_id}/mark", response_model=MarkJobAccepted, status_code=202)
 async def mark_attendance(
     course_id: int,
     session_id: int,
@@ -76,62 +75,39 @@ async def mark_attendance(
     professor: Professor = Depends(get_current_professor),
     db: AsyncSession = Depends(get_db),
 ):
+    """Enqueues the classroom photo for async processing (app/tasks/attendance_tasks.py)
+    instead of blocking the request on face-worker + matching -- a large multi-face
+    photo can take a few seconds, which shouldn't tie up the HTTP request thread.
+    Poll GET .../jobs/{job_id} for the result."""
     await _get_owned_session(course_id, session_id, professor, db)
 
     image_bytes = await file.read()
-    detected_faces = await extract_all_embeddings(image_bytes)
-    if not detected_faces:
-        raise HTTPException(status_code=422, detail="No faces detected in image")
-
-    already_marked = {
-        r.student_id for r in (await db.execute(
-            select(AttendanceRecord).where(AttendanceRecord.session_id == session_id)
-        )).scalars().all()
-    }
-
-    matched: list[MatchedStudent] = []
-    unmatched_count = 0
-    spoofed_count = 0
-    for detected in detected_faces:
-        if not detected.is_live:
-            # A spoofed face (photo/screen held up to the camera) is a
-            # distinct signal from "a stranger's face doesn't match anyone
-            # enrolled" -- don't silently lump it into unmatched_count, and
-            # don't reject the whole photo just because one of several faces
-            # in a classroom shot is spoofed.
-            spoofed_count += 1
-            liveness_reject_total.labels(context="mark").inc()
-            logger.info("liveness_reject", context="mark", course_id=course_id, session_id=session_id, score=detected.liveness_score)
-            continue
-
-        # HNSW-indexed nearest-neighbor query (pgvector) -- replaces the old
-        # brute-force Python loop over the whole gallery fetched into memory.
-        result = await find_best_match(db, course_id, detected.embedding)
-        if result is None:
-            unmatched_count += 1
-            continue
-        student_id, confidence = result
-        if student_id in already_marked:
-            continue  # same face photographed twice in one session shot, e.g. group re-take
-        already_marked.add(student_id)
-
-        student = await db.get(Student, student_id)
-        db.add(AttendanceRecord(session_id=session_id, student_id=student_id, confidence=confidence))
-        matched.append(MatchedStudent(
-            student_id=student_id, name=student.name, roll_number=student.roll_number, confidence=confidence,
-        ))
-
+    job = AttendanceJob(session_id=session_id, status=PENDING)
+    db.add(job)
     await db.commit()
-    logger.info(
-        "attendance_marked",
-        course_id=course_id,
-        session_id=session_id,
-        faces_detected=len(detected_faces),
-        matched_count=len(matched),
-        unmatched_count=unmatched_count,
-        spoofed_count=spoofed_count,
-    )
-    return MarkAttendanceResponse(matched=matched, unmatched_face_count=unmatched_count, spoofed_face_count=spoofed_count)
+    await db.refresh(job)
+
+    redis = await get_redis_pool()
+    await redis.enqueue_job("process_attendance_photo", job.id, course_id, session_id, image_bytes)
+
+    return MarkJobAccepted(job_id=job.id, status=job.status)
+
+
+@router.get("/sessions/{session_id}/jobs/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(
+    course_id: int,
+    session_id: int,
+    job_id: int,
+    professor: Professor = Depends(get_current_professor),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_owned_session(course_id, session_id, professor, db)
+
+    job = await db.get(AttendanceJob, job_id)
+    if job is None or job.session_id != session_id:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    return JobStatusResponse(job_id=job.id, status=job.status, result=job.result, error=job.error)
 
 
 @router.get("/sessions/{session_id}", response_model=list[AttendanceRecordOut])

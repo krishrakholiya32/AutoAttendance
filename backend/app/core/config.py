@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     face_match_threshold: float = 0.32
     max_embeddings_per_student: int = 5
     face_worker_url: str = "http://face-worker:8001"
+    redis_url: str = "redis://redis:6379/0"
 
     @field_validator("database_url", mode="before")
     @classmethod

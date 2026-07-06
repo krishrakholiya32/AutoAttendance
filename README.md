@@ -111,8 +111,21 @@ npm run build
 | `POST /courses/{id}/students` | Add a student to a course roster |
 | `POST /courses/{id}/students/{id}/enroll-face?angle_label=front` | Upload one enrollment angle |
 | `POST /courses/{id}/attendance/sessions` | Start a new attendance session |
-| `POST /courses/{id}/attendance/sessions/{id}/mark` | Upload a classroom photo — detects and matches every face against that course's roster |
+| `POST /courses/{id}/attendance/sessions/{id}/mark` | Upload a classroom photo — enqueues async processing, returns `202 {job_id}` |
+| `GET /courses/{id}/attendance/sessions/{id}/jobs/{job_id}` | Poll a mark-attendance job (`pending`/`processing`/`done`/`failed`) |
 | `GET /courses/{id}/attendance/sessions/{id}` | Full present/absent roster for a session |
+
+## Async attendance processing
+
+`mark` no longer blocks the request on face-worker + matching — a multi-face classroom
+photo can take a few seconds, which shouldn't tie up an HTTP thread. The API enqueues a job
+to Redis (`arq`); a separate worker process (`arq app.worker.WorkerSettings`) picks it up,
+calls face-worker, runs pgvector matching, and writes the result to the `attendance_jobs`
+row for the frontend to poll. Only attendance-**marking** is queued — enrollment is a single
+small image with a professor waiting mid-wizard, already sub-second, so queuing it would add
+latency for no benefit. Redis runs with AOF persistence so a Redis restart doesn't drop
+queued jobs; verified that a job submitted while the worker is down stays queued and
+completes once the worker comes back, rather than being silently lost.
 
 ## Deployment
 
