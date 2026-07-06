@@ -8,6 +8,7 @@ from app.api.courses import _get_owned_course
 from app.core.database import get_db
 from app.core.deps import get_current_professor
 from app.core.logging import get_logger
+from app.core.metrics import liveness_reject_total
 from app.models.attendance import AttendanceRecord, AttendanceSession
 from app.models.professor import Professor
 from app.models.student import Student
@@ -78,8 +79,8 @@ async def mark_attendance(
     await _get_owned_session(course_id, session_id, professor, db)
 
     image_bytes = await file.read()
-    probe_embeddings = extract_all_embeddings(image_bytes)
-    if not probe_embeddings:
+    detected_faces = extract_all_embeddings(image_bytes)
+    if not detected_faces:
         raise HTTPException(status_code=422, detail="No faces detected in image")
 
     already_marked = {
@@ -90,10 +91,22 @@ async def mark_attendance(
 
     matched: list[MatchedStudent] = []
     unmatched_count = 0
-    for probe_embedding in probe_embeddings:
+    spoofed_count = 0
+    for detected in detected_faces:
+        if not detected.is_live:
+            # A spoofed face (photo/screen held up to the camera) is a
+            # distinct signal from "a stranger's face doesn't match anyone
+            # enrolled" -- don't silently lump it into unmatched_count, and
+            # don't reject the whole photo just because one of several faces
+            # in a classroom shot is spoofed.
+            spoofed_count += 1
+            liveness_reject_total.labels(context="mark").inc()
+            logger.info("liveness_reject", context="mark", course_id=course_id, session_id=session_id, score=detected.liveness_score)
+            continue
+
         # HNSW-indexed nearest-neighbor query (pgvector) -- replaces the old
         # brute-force Python loop over the whole gallery fetched into memory.
-        result = await find_best_match(db, course_id, probe_embedding)
+        result = await find_best_match(db, course_id, detected.embedding)
         if result is None:
             unmatched_count += 1
             continue
@@ -113,11 +126,12 @@ async def mark_attendance(
         "attendance_marked",
         course_id=course_id,
         session_id=session_id,
-        faces_detected=len(probe_embeddings),
+        faces_detected=len(detected_faces),
         matched_count=len(matched),
         unmatched_count=unmatched_count,
+        spoofed_count=spoofed_count,
     )
-    return MarkAttendanceResponse(matched=matched, unmatched_face_count=unmatched_count)
+    return MarkAttendanceResponse(matched=matched, unmatched_face_count=unmatched_count, spoofed_face_count=spoofed_count)
 
 
 @router.get("/sessions/{session_id}", response_model=list[AttendanceRecordOut])

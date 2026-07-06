@@ -6,6 +6,8 @@ from app.api.courses import _get_owned_course
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_professor
+from app.core.logging import get_logger
+from app.core.metrics import liveness_reject_total
 from app.models.embedding import FaceEmbedding
 from app.models.professor import Professor
 from app.models.student import Student
@@ -13,6 +15,7 @@ from app.schemas.student import EnrollFaceResponse, StudentCreate, StudentOut
 from app.services.face_service import extract_single_embedding
 
 router = APIRouter(prefix="/courses/{course_id}/students", tags=["students"])
+logger = get_logger(__name__)
 
 
 async def _get_owned_student(course_id: int, student_id: int, professor: Professor, db: AsyncSession) -> Student:
@@ -89,9 +92,13 @@ async def enroll_face(
     student = await _get_owned_student(course_id, student_id, professor, db)
 
     image_bytes = await file.read()
-    embedding = extract_single_embedding(image_bytes)
-    if embedding is None:
+    detected = extract_single_embedding(image_bytes)
+    if detected is None:
         raise HTTPException(status_code=422, detail="No face detected in image")
+    if not detected.is_live:
+        liveness_reject_total.labels(context="enroll").inc()
+        logger.info("liveness_reject", context="enroll", student_id=student.id, score=detected.liveness_score)
+        raise HTTPException(status_code=422, detail={"code": "spoof_detected", "message": "This looks like a photo of a photo/screen, not a live camera capture."})
 
     existing = (await db.execute(
         select(FaceEmbedding).where(
@@ -99,9 +106,9 @@ async def enroll_face(
         )
     )).scalar_one_or_none()
     if existing is not None:
-        existing.vector = embedding.tolist()
+        existing.vector = detected.embedding.tolist()
     else:
-        db.add(FaceEmbedding(student_id=student.id, angle_label=angle_label, vector=embedding.tolist()))
+        db.add(FaceEmbedding(student_id=student.id, angle_label=angle_label, vector=detected.embedding.tolist()))
     await db.commit()
 
     all_embeddings = (await db.execute(

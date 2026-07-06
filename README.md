@@ -16,6 +16,9 @@ in one shot, scoped to that course's roster only.
   improve real-world matching robustness versus a single enrollment photo.
 - **Multi-face detection**: one classroom photo is enough — every face in frame is detected
   and matched in a single request, not one student at a time.
+- **Liveness detection**: a printed photo or screen replay held up to the camera is rejected
+  before it ever reaches matching — face recognition alone can't tell a live person from a
+  photo of one.
 
 ## Accuracy
 
@@ -59,6 +62,17 @@ times the old brute-force Python approach against the pgvector HNSW-indexed quer
 
 **~28x faster** at 10k embeddings — a gap that doesn't show up at this project's real
 current scale (a handful of enrolled students) but matters as courses/students grow.
+
+## Liveness / anti-spoofing
+
+Both enrollment and attendance-marking run every detected face through
+[MiniFASNetV2-SE](https://github.com/facenox/face-antispoof-onnx) (quantized ONNX, ~600KB,
+~98% accuracy on 70k+ real/spoof samples, Apache 2.0) before accepting it — rejecting a
+printed photo or a phone/screen held up to the camera. Enrollment hard-rejects on a spoofed
+face (`422 spoof_detected`); a spoofed face during attendance-marking is excluded from
+matching without failing the whole classroom photo (tracked separately from
+`unmatched_face_count` as `spoofed_face_count`, since "spoofing attempt" and "a stranger's
+face doesn't match anyone enrolled" are different signals worth telling apart in logs/metrics).
 
 ## Commands
 

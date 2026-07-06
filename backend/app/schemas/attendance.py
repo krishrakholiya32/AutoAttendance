@@ -25,6 +25,7 @@ class MatchedStudent(BaseModel):
 class MarkAttendanceResponse(BaseModel):
     matched: list[MatchedStudent]
     unmatched_face_count: int
+    spoofed_face_count: int = 0
 
 
 class AttendanceRecordOut(BaseModel):
