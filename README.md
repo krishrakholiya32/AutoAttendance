@@ -154,21 +154,32 @@ manually `inject()`s its `traceparent` into the job's arguments
 context before running (`app/tasks/attendance_tasks.py`), so one trace genuinely spans
 request → enqueue → dequeue → face-worker call → DB write, verified end to end against a real
 `mark` request. Tracing is a no-op outside Compose (`OTEL_EXPORTER_OTLP_ENDPOINT` unset) since
-Tempo doesn't exist on the pre-Phase-8 production systemd deploy yet.
+Tempo doesn't exist wherever Compose isn't running (e.g. a bare local venv).
 
 ## Deployment
 
 Live at **https://autoattendance.zrik.tech** on Oracle Cloud's Always Free tier
 (`VM.Standard.A1.Flex`, 4 OCPU / 24GB ARM Ampere), fronted by Nginx + Let's Encrypt SSL
-(certbot, auto-renewing). As of Phase 8, the app itself (api, arq-worker, face-worker) plus
-the full observability stack run as Docker Compose services
-(`docker-compose.prod.yml`) rather than bare systemd + venv — **Postgres stays the native
+(certbot, auto-renewing). The app itself (api, arq-worker, face-worker) plus the full
+observability stack run as Docker Compose services (`docker-compose.prod.yml`); the old
+bare systemd + venv services (`autoattendance`, `autoattendance-arq-worker`) are stopped and
+disabled but not deleted, kept only as a rollback path. **Postgres stays the native
 apt-installed instance** (never containerized, at every phase of this rebuild) since it's
 irreplaceable data, not a stateless service; containers reach it via `host.docker.internal`
 (`extra_hosts: host-gateway`) with a `pg_hba.conf` rule scoped to Docker's private bridge
 range and password auth, same as any other client. Redis, unlike Postgres, *is* containerized
 in production, since it only ever holds transient attendance-marking job state rather than
 durable records.
+
+Reaching the native Postgres from a container needed two host-level changes beyond the
+`pg_hba.conf` rule: `listen_addresses = '*'` (it only listened on loopback before), and — the
+one that actually broke the first cutover attempt — an iptables `INPUT` rule explicitly
+accepting `tcp dpt:5432` from Docker's private range, since Oracle's default iptables setup
+has a catch-all `REJECT` at the end of `INPUT` that a bridge-network container's connection
+to the host hits just like any other unlisted port. `extra_hosts: host-gateway` also turned
+out to resolve to the *default* `docker0` bridge's gateway rather than this project's own
+compose network's gateway (a different, unreachable bridge) — `docker-compose.prod.yml` pins
+`networks.default.ipam` to a fixed subnet and hardcodes the matching gateway IP instead.
 
 Production images are built for `linux/arm64` and pushed to GHCR via a manual
 (`workflow_dispatch`-only) CI job, `.github/workflows/build-images.yml` — deliberately not
