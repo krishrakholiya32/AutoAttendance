@@ -27,6 +27,9 @@ services:
       MAX_EMBEDDINGS_PER_STUDENT: ${MAX_EMBEDDINGS_PER_STUDENT:-5}
       FACE_WORKER_URL: http://face-worker:8001
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      FRONTEND_DIST_PATH: /frontend-dist
+    volumes:
+      - ./frontend/dist:/frontend-dist:ro
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
 

@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     # Empty disables tracing entirely -- see app/core/tracing.py's docstring.
     otel_exporter_otlp_endpoint: str = ""
+    # Empty falls back to main.py's relative-path default. See main.py's comment.
+    frontend_dist_path: str = ""
 
     @field_validator("database_url", mode="before")
     @classmethod

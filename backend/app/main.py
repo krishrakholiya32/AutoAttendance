@@ -53,8 +53,12 @@ async def health():
     return {"status": "ok"}
 
 
-# Serve React frontend — must come last (catch-all)
-_FRONTEND = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+# Serve React frontend — must come last (catch-all). The relative-path
+# default assumes backend/ and frontend/ are sibling directories on disk
+# (true for the bare-venv deploy) -- a container only has backend/ copied in,
+# so FRONTEND_DIST_PATH lets docker-compose.prod.yml point this at a bind
+# mount instead.
+_FRONTEND = settings.frontend_dist_path or os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
 if os.path.exists(_FRONTEND):
     app.mount("/assets", StaticFiles(directory=os.path.join(_FRONTEND, "assets")), name="assets")
 
