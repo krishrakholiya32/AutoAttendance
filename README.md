@@ -127,6 +127,12 @@ latency for no benefit. Redis runs with AOF persistence so a Redis restart doesn
 queued jobs; verified that a job submitted while the worker is down stays queued and
 completes once the worker comes back, rather than being silently lost.
 
+On the frontend, `TakeAttendance.tsx` moves to a "processing…" screen the instant the photo
+uploads instead of blocking on the old synchronous response, then polls
+`GET .../jobs/{job_id}` (`pollJobStatus` in `client.ts`, ~1.5s interval) until the job reaches
+`done` or `failed` — matched students and spoofed/unmatched counts render once the job
+actually finishes, whether that's one second or several.
+
 ## Deployment
 
 Live at **https://autoattendance.zrik.tech** on Oracle Cloud's Always Free tier

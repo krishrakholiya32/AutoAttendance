@@ -69,6 +69,21 @@ export interface MatchedStudent {
 export interface MarkAttendanceResult {
   matched: MatchedStudent[];
   unmatched_face_count: number;
+  spoofed_face_count: number;
+}
+
+export type JobStatus = "pending" | "processing" | "done" | "failed";
+
+export interface MarkJobAccepted {
+  job_id: number;
+  status: JobStatus;
+}
+
+export interface JobStatusResponse {
+  job_id: number;
+  status: JobStatus;
+  result: MarkAttendanceResult | null;
+  error: string | null;
 }
 
 export interface AttendanceRecord {
@@ -159,12 +174,45 @@ export async function listSessions(courseId: number) {
 export async function markAttendance(courseId: number, sessionId: number, blob: Blob) {
   const form = new FormData();
   form.append("file", blob, "classroom.jpg");
-  const { data } = await client.post<MarkAttendanceResult>(
+  const { data } = await client.post<MarkJobAccepted>(
     `/courses/${courseId}/attendance/sessions/${sessionId}/mark`,
     form,
     { headers: { "Content-Type": "multipart/form-data" } }
   );
   return data;
+}
+
+export async function getJobStatus(courseId: number, sessionId: number, jobId: number) {
+  const { data } = await client.get<JobStatusResponse>(
+    `/courses/${courseId}/attendance/sessions/${sessionId}/jobs/${jobId}`
+  );
+  return data;
+}
+
+/**
+ * Polls a mark-attendance job until it reaches a terminal state (done/failed).
+ * `onTick` fires after every poll so the caller can reflect the latest status.
+ */
+export async function pollJobStatus(
+  courseId: number,
+  sessionId: number,
+  jobId: number,
+  onTick?: (status: JobStatusResponse) => void,
+  intervalMs = 1500,
+  timeoutMs = 60000
+): Promise<JobStatusResponse> {
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    const status = await getJobStatus(courseId, sessionId, jobId);
+    onTick?.(status);
+    if (status.status === "done" || status.status === "failed") {
+      return status;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error("Attendance processing timed out");
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
 }
 
 export async function getSessionRecords(courseId: number, sessionId: number) {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import CameraCapture from "../components/CameraCapture";
 import * as api from "../api/client";
-import type { MarkAttendanceResult } from "../api/client";
+import type { JobStatus, MarkAttendanceResult } from "../api/client";
 
 export default function TakeAttendance() {
   const { courseId, sessionId } = useParams();
@@ -10,16 +10,24 @@ export default function TakeAttendance() {
   const sessId = Number(sessionId);
   const navigate = useNavigate();
 
+  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [result, setResult] = useState<MarkAttendanceResult | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const processing = jobStatus !== null && jobStatus !== "done" && jobStatus !== "failed";
+
   const handleCapture = async (blob: Blob) => {
-    setSubmitting(true);
     setError("");
+    setResult(null);
+    setJobStatus("pending");
     try {
-      const res = await api.markAttendance(cId, sessId, blob);
-      setResult(res);
+      const { job_id } = await api.markAttendance(cId, sessId, blob);
+      const final = await api.pollJobStatus(cId, sessId, job_id, (status) => setJobStatus(status.status));
+      if (final.status === "done" && final.result) {
+        setResult(final.result);
+      } else {
+        setError(final.error ?? "Something went wrong processing the photo.");
+      }
     } catch (err: any) {
       if (err?.response?.status === 422) {
         setError("No faces detected in the photo — try again with better lighting or framing.");
@@ -27,9 +35,21 @@ export default function TakeAttendance() {
         setError("Something went wrong. Try again.");
       }
     } finally {
-      setSubmitting(false);
+      setJobStatus(null);
     }
   };
+
+  if (processing) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center">
+        <div className="text-4xl mb-3 animate-pulse">🔍</div>
+        <h1 className="text-lg font-bold text-gray-900 mb-1">
+          {jobStatus === "processing" ? "Matching faces…" : "Uploading photo…"}
+        </h1>
+        <p className="text-sm text-gray-500">This usually takes a few seconds.</p>
+      </div>
+    );
+  }
 
   if (result) {
     return (
@@ -42,6 +62,12 @@ export default function TakeAttendance() {
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3 inline-block">
             {result.unmatched_face_count} face{result.unmatched_face_count === 1 ? "" : "s"} in the photo
             didn't match any enrolled student
+          </p>
+        )}
+        {result.spoofed_face_count > 0 && (
+          <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mt-3 inline-block">
+            {result.spoofed_face_count} face{result.spoofed_face_count === 1 ? "" : "s"} rejected as a
+            photo/screen spoof
           </p>
         )}
 
@@ -89,12 +115,7 @@ export default function TakeAttendance() {
         </p>
       </div>
 
-      <CameraCapture
-        onCapture={handleCapture}
-        facingMode="environment"
-        captureLabel={submitting ? "Processing…" : "Capture classroom photo"}
-        disabled={submitting}
-      />
+      <CameraCapture onCapture={handleCapture} facingMode="environment" captureLabel="Capture classroom photo" />
 
       {error && (
         <p className="text-red-600 text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2 mt-4 text-center">
