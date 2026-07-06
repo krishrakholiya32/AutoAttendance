@@ -5,6 +5,33 @@ Face-recognition-based classroom attendance. Each professor enrolls their studen
 laptop camera at the classroom — every enrolled face in the photo is detected and matched
 in one shot, scoped to that course's roster only.
 
+## Demo
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/1-landing-signup.png" alt="Signup" width="100%"></td>
+    <td><img src="docs/screenshots/2-dashboard.png" alt="Course dashboard" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Signup — professor account creation</em></td>
+    <td align="center"><em>Course dashboard — roster with enrollment status</em></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/3-enroll-face.png" alt="Face enrollment" width="100%"></td>
+    <td><img src="docs/screenshots/4-take-attendance.png" alt="Take attendance" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Guided 5-angle face enrollment</em></td>
+    <td align="center"><em>Attendance capture — one classroom photo</em></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/5-attendance-result.png" alt="Attendance result" width="100%"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><em>Result — matched students with confidence scores</em></td>
+  </tr>
+</table>
+
 ## Why this design
 
 - **Multi-tenant**: each professor logs in and manages their own courses independently.
