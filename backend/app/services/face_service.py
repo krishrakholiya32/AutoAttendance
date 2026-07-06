@@ -1,13 +1,14 @@
 """Wraps InsightFace (buffalo_s: detection + recognition only) for enrollment
 and attendance matching. Model choice and the cosine-similarity matching
 approach were validated in notebooks/face_accuracy_benchmark.ipynb (98.5-100%
-1:N accuracy on LFW at gallery sizes 10-300)."""
+1:N accuracy on LFW at gallery sizes 10-300). Actual matching against a
+course's gallery now happens in app.services.matching via a pgvector
+HNSW-indexed SQL query -- cosine_similarity below is kept only as the
+brute-force comparison baseline for scripts/benchmark_vector_search.py."""
 
 import numpy as np
 import cv2
 from insightface.app import FaceAnalysis
-
-from app.core.config import settings
 
 _face_app: FaceAnalysis | None = None
 
@@ -50,22 +51,3 @@ def extract_all_embeddings(image_bytes: bytes) -> list[np.ndarray]:
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
-
-
-def match_face(
-    probe_embedding: np.ndarray,
-    gallery: list[tuple[int, np.ndarray]],
-) -> tuple[int, float] | None:
-    """gallery: list of (student_id, embedding) pairs, one entry per enrolled
-    angle capture -- a student's best-matching angle wins their score. Returns
-    (student_id, confidence) if the best match clears face_match_threshold,
-    else None (an unenrolled face in the photo, e.g. a passerby)."""
-    best_student_id, best_score = None, -1.0
-    for student_id, gallery_embedding in gallery:
-        score = cosine_similarity(probe_embedding, gallery_embedding)
-        if score > best_score:
-            best_score = score
-            best_student_id = student_id
-    if best_student_id is not None and best_score >= settings.face_match_threshold:
-        return best_student_id, best_score
-    return None

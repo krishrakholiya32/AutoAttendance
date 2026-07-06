@@ -41,10 +41,24 @@ full honest caveat.
 
 - **Backend**: FastAPI, async SQLAlchemy (asyncpg), PostgreSQL, PyJWT + Argon2 (`pwdlib`)
 - **Face recognition**: InsightFace `buffalo_s` (ONNX runtime, CPU), stored as 512-d
-  embeddings per enrollment angle (`ARRAY(Float)` column, no vector DB extension needed at
-  this scale — matching is plain cosine similarity, application-side)
+  embeddings per enrollment angle in a `pgvector` column with an HNSW index — matching is a
+  single indexed nearest-neighbor SQL query (`app/services/matching.py`), not a Python loop
+  over the whole gallery
 - **Frontend**: React + TypeScript + Vite, Tailwind CSS, browser `getUserMedia` for camera
   capture (no native app needed)
+
+## Vector search at scale
+
+`scripts/benchmark_vector_search.py` seeds a synthetic 10,000-embedding course gallery and
+times the old brute-force Python approach against the pgvector HNSW-indexed query:
+
+| Approach | p50 | p95 | mean |
+|---|---|---|---|
+| Brute-force (Python loop) | 276.7 ms | 348.7 ms | 288.9 ms |
+| pgvector HNSW (SQL) | 9.8 ms | 14.0 ms | 10.2 ms |
+
+**~28x faster** at 10k embeddings — a gap that doesn't show up at this project's real
+current scale (a handful of enrolled students) but matters as courses/students grow.
 
 ## Commands
 

@@ -9,7 +9,6 @@ from app.core.database import get_db
 from app.core.deps import get_current_professor
 from app.core.logging import get_logger
 from app.models.attendance import AttendanceRecord, AttendanceSession
-from app.models.embedding import FaceEmbedding
 from app.models.professor import Professor
 from app.models.student import Student
 from app.schemas.attendance import (
@@ -19,7 +18,8 @@ from app.schemas.attendance import (
     SessionCreate,
     SessionOut,
 )
-from app.services.face_service import extract_all_embeddings, match_face
+from app.services.face_service import extract_all_embeddings
+from app.services.matching import find_best_match
 
 router = APIRouter(prefix="/courses/{course_id}/attendance", tags=["attendance"])
 logger = get_logger(__name__)
@@ -82,14 +82,6 @@ async def mark_attendance(
     if not probe_embeddings:
         raise HTTPException(status_code=422, detail="No faces detected in image")
 
-    # Build this course's gallery once: every enrolled angle of every student.
-    gallery_rows = (await db.execute(
-        select(FaceEmbedding.student_id, FaceEmbedding.vector)
-        .join(Student, Student.id == FaceEmbedding.student_id)
-        .where(Student.course_id == course_id)
-    )).all()
-    gallery = [(student_id, vector) for student_id, vector in gallery_rows]
-
     already_marked = {
         r.student_id for r in (await db.execute(
             select(AttendanceRecord).where(AttendanceRecord.session_id == session_id)
@@ -99,7 +91,9 @@ async def mark_attendance(
     matched: list[MatchedStudent] = []
     unmatched_count = 0
     for probe_embedding in probe_embeddings:
-        result = match_face(probe_embedding, gallery)
+        # HNSW-indexed nearest-neighbor query (pgvector) -- replaces the old
+        # brute-force Python loop over the whole gallery fetched into memory.
+        result = await find_best_match(db, course_id, probe_embedding)
         if result is None:
             unmatched_count += 1
             continue

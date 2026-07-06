@@ -8,6 +8,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost")
 
 import pytest_asyncio
+import sqlalchemy as sa
 from httpx import ASGITransport, AsyncClient
 
 import app.models  # noqa: F401 -- registers all models on Base.metadata
@@ -26,6 +27,7 @@ fastapi_app.dependency_overrides[get_db] = _override_get_db
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_db():
     async with engine.begin() as conn:
+        await conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
