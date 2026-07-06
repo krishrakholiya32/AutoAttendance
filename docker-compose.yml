@@ -25,15 +25,29 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      face-worker:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+asyncpg://autoattendance:autoattendance@postgres:5432/autoattendance
       JWT_SECRET: ${JWT_SECRET:-dev-only-secret-do-not-use-in-production}
       CORS_ORIGINS: http://localhost:5173
+      FACE_WORKER_URL: http://face-worker:8001
     volumes:
       - ./backend:/app
     ports:
       - "8010:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  face-worker:
+    build:
+      context: .
+      dockerfile: face-worker/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./face-worker:/app
+    ports:
+      - "8011:8001"
+    command: uvicorn app:app --host 0.0.0.0 --port 8001 --reload
 
 volumes:
   pgdata:

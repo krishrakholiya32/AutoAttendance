@@ -19,7 +19,7 @@ from app.schemas.attendance import (
     SessionCreate,
     SessionOut,
 )
-from app.services.face_service import extract_all_embeddings
+from app.services.face_client import extract_all_embeddings
 from app.services.matching import find_best_match
 
 router = APIRouter(prefix="/courses/{course_id}/attendance", tags=["attendance"])
@@ -79,7 +79,7 @@ async def mark_attendance(
     await _get_owned_session(course_id, session_id, professor, db)
 
     image_bytes = await file.read()
-    detected_faces = extract_all_embeddings(image_bytes)
+    detected_faces = await extract_all_embeddings(image_bytes)
     if not detected_faces:
         raise HTTPException(status_code=422, detail="No faces detected in image")
 

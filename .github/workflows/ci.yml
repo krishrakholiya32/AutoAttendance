@@ -42,6 +42,30 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
 
+      - name: Install Python dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest -v
+
+  face-worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: face-worker
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: face-worker/requirements-dev.txt
+
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libglib2.0-0
 

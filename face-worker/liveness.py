@@ -6,6 +6,10 @@ https://github.com/facenox/face-antispoof-onnx (Apache 2.0), ~98% accuracy
 on 70k+ real/spoof samples. The crop/preprocess/decision logic below is
 ported directly from that repo's src/inference/ (not pulled in as a pip
 dependency since we only need inference, not its training pipeline).
+
+Duplicated (not imported) from backend/app/services/liveness_service.py --
+this service is deliberately self-contained with no dependency on the
+backend package, matching the stateless-microservice split (Phase 4).
 """
 
 import os
@@ -14,7 +18,7 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "liveness_model.onnx")
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "assets", "liveness_model.onnx")
 MODEL_IMG_SIZE = 128
 BBOX_EXPANSION_FACTOR = 1.5  # matches upstream demo.py's default
 

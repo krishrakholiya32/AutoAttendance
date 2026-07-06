@@ -3,8 +3,7 @@ import os
 import cv2
 import numpy as np
 
-from app.services.face_service import get_face_app
-from app.services.liveness_service import check_liveness
+from liveness import check_liveness
 
 TEST_IMAGE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "test_faces", "lena.jpg")
 
@@ -15,12 +14,19 @@ def _load_test_image() -> np.ndarray:
     return cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
 
-def test_liveness_accepts_a_clean_real_photo():
-    img_bgr = _load_test_image()
+def _detect_bbox(img_bgr: np.ndarray):
+    from app import get_face_app
+
     faces = get_face_app().get(img_bgr)
     assert len(faces) == 1
+    return faces[0].bbox
 
-    result = check_liveness(img_bgr, faces[0].bbox)
+
+def test_liveness_accepts_a_clean_real_photo():
+    img_bgr = _load_test_image()
+    bbox = _detect_bbox(img_bgr)
+
+    result = check_liveness(img_bgr, bbox)
     assert result["is_real"] is True
 
 
@@ -30,8 +36,7 @@ def test_liveness_rejects_a_simulated_screen_replay():
     photo, proving the pipeline is genuinely sensitive to image content
     rather than always returning "real"."""
     img_bgr = _load_test_image()
-    faces = get_face_app().get(img_bgr)
-    bbox = faces[0].bbox
+    bbox = _detect_bbox(img_bgr)
 
     h, w = img_bgr.shape[:2]
     degraded = cv2.resize(img_bgr, (w // 4, h // 4), interpolation=cv2.INTER_LINEAR)

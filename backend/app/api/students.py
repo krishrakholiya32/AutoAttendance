@@ -12,7 +12,7 @@ from app.models.embedding import FaceEmbedding
 from app.models.professor import Professor
 from app.models.student import Student
 from app.schemas.student import EnrollFaceResponse, StudentCreate, StudentOut
-from app.services.face_service import extract_single_embedding
+from app.services.face_client import extract_single_embedding
 
 router = APIRouter(prefix="/courses/{course_id}/students", tags=["students"])
 logger = get_logger(__name__)
@@ -92,7 +92,7 @@ async def enroll_face(
     student = await _get_owned_student(course_id, student_id, professor, db)
 
     image_bytes = await file.read()
-    detected = extract_single_embedding(image_bytes)
+    detected = await extract_single_embedding(image_bytes)
     if detected is None:
         raise HTTPException(status_code=422, detail="No face detected in image")
     if not detected.is_live:

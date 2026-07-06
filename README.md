@@ -42,11 +42,16 @@ full honest caveat.
 
 ## Stack
 
-- **Backend**: FastAPI, async SQLAlchemy (asyncpg), PostgreSQL, PyJWT + Argon2 (`pwdlib`)
-- **Face recognition**: InsightFace `buffalo_s` (ONNX runtime, CPU), stored as 512-d
-  embeddings per enrollment angle in a `pgvector` column with an HNSW index — matching is a
-  single indexed nearest-neighbor SQL query (`app/services/matching.py`), not a Python loop
-  over the whole gallery
+- **Backend** (`backend/`): FastAPI, async SQLAlchemy (asyncpg), PostgreSQL, PyJWT + Argon2
+  (`pwdlib`) — owns auth, courses/students, and Postgres; has zero ML dependencies itself
+- **Face worker** (`face-worker/`): a separate stateless FastAPI microservice doing face
+  detection + embedding (InsightFace `buffalo_s`, ONNX runtime, CPU) + liveness in one
+  `/analyze` call per image, mirroring [CompreFace](https://github.com/exadel-inc/CompreFace)'s
+  API-server/embedding-server split — no DB access, horizontally scalable independent of the
+  main API. The backend talks to it over HTTP (`app/services/face_client.py`).
+- 512-d embeddings live in a `pgvector` column with an HNSW index — matching is a single
+  indexed nearest-neighbor SQL query (`app/services/matching.py`), not a Python loop over the
+  whole gallery
 - **Frontend**: React + TypeScript + Vite, Tailwind CSS, browser `getUserMedia` for camera
   capture (no native app needed)
 

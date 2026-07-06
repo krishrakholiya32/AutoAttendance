@@ -11,14 +11,10 @@ alembic==1.18.5
 pgvector==0.4.2
 prometheus-fastapi-instrumentator==7.1.0
 structlog==26.1.0
-insightface==1.0.1
-onnxruntime==1.27.0
-opencv-python-headless==4.11.0.86
+httpx==0.28.1
 numpy==2.2.4
 
-# insightface's own setup.py lists "opencv-python" (GUI build) as a dependency,
-# so pip installs it alongside opencv-python-headless above even though only
-# one cv2 native module can be active -- on a minimal server (no libGL.so.1)
-# the GUI build fails to import. After `pip install -r requirements.txt`, run:
-#   pip uninstall -y opencv-python && pip install --force-reinstall --no-cache-dir opencv-python-headless==4.11.0.86
-# to leave only the headless build installed.
+# Face detection/embedding/liveness (insightface, onnxruntime,
+# opencv-python-headless) moved entirely to face-worker/ as of Phase 4 --
+# the backend only talks to that service over HTTP (app/services/face_client.py)
+# and never imports cv2 or insightface itself anymore.

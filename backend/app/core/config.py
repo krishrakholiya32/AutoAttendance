@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # onto the closest enrolled student.
     face_match_threshold: float = 0.32
     max_embeddings_per_student: int = 5
+    face_worker_url: str = "http://face-worker:8001"
 
     @field_validator("database_url", mode="before")
     @classmethod

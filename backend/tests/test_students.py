@@ -3,7 +3,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from app.services.face_service import DetectedFace
+from app.services.face_client import DetectedFace
 
 pytestmark = pytest.mark.asyncio
 
