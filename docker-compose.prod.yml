@@ -1,0 +1,131 @@
+services:
+
+  api:
+    image: ghcr.io/krishrakholiya32/autoattendance-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Postgres stays the native apt-installed instance on the host, never
+    # containerized (see README's Deployment section for why) -- host-gateway
+    # is the portable way to reach it from inside a container on native Linux
+    # Docker (unlike Docker Desktop, "host.docker.internal" isn't built in).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      face-worker:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: https://autoattendance.zrik.tech
+      FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.32}
+      MAX_EMBEDDINGS_PER_STUDENT: ${MAX_EMBEDDINGS_PER_STUDENT:-5}
+      FACE_WORKER_URL: http://face-worker:8001
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+
+  arq-worker:
+    image: ghcr.io/krishrakholiya32/autoattendance-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      face-worker:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.32}
+      FACE_WORKER_URL: http://face-worker:8001
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+    command: arq app.worker.WorkerSettings
+
+  face-worker:
+    image: ghcr.io/krishrakholiya32/autoattendance-face-worker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+
+  # Redis is containerized here (unlike Postgres) -- it only ever holds
+  # transient attendance-marking job state, not durable records, so the
+  # much-lower-risk tradeoff of a one-time queue-drain during cutover (wait
+  # for the pre-cutover native Redis's queue to hit zero, verified below)
+  # beats the added complexity/exposure of opening the native Redis to the
+  # Docker bridge network the way Postgres is opened.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  tempo:
+    image: grafana/tempo:latest
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempodata:/var/tempo
+
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - lokidata:/loki
+
+  promtail:
+    image: grafana/promtail:latest
+    restart: unless-stopped
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    volumes:
+      - ./observability/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    # Not proxied through Nginx/exposed publicly -- reach it via an SSH tunnel
+    # (`ssh -L 3001:127.0.0.1:3001 <host>`), see README.
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+volumes:
+  redisdata:
+  promdata:
+  tempodata:
+  lokidata:
+  grafanadata:

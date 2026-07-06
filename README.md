@@ -159,6 +159,27 @@ Tempo doesn't exist on the pre-Phase-8 production systemd deploy yet.
 ## Deployment
 
 Live at **https://autoattendance.zrik.tech** on Oracle Cloud's Always Free tier
-(`VM.Standard.A1.Flex`, 4 OCPU / 24GB ARM Ampere), systemd service + Nginx + Postgres +
-Let's Encrypt SSL (certbot, auto-renewing), matching the deployment pattern used across this
-portfolio's other projects (ClauseGuard, CaReSale, PptGen, kGPT).
+(`VM.Standard.A1.Flex`, 4 OCPU / 24GB ARM Ampere), fronted by Nginx + Let's Encrypt SSL
+(certbot, auto-renewing). As of Phase 8, the app itself (api, arq-worker, face-worker) plus
+the full observability stack run as Docker Compose services
+(`docker-compose.prod.yml`) rather than bare systemd + venv — **Postgres stays the native
+apt-installed instance** (never containerized, at every phase of this rebuild) since it's
+irreplaceable data, not a stateless service; containers reach it via `host.docker.internal`
+(`extra_hosts: host-gateway`) with a `pg_hba.conf` rule scoped to Docker's private bridge
+range and password auth, same as any other client. Redis, unlike Postgres, *is* containerized
+in production, since it only ever holds transient attendance-marking job state rather than
+durable records.
+
+Production images are built for `linux/arm64` and pushed to GHCR via a manual
+(`workflow_dispatch`-only) CI job, `.github/workflows/build-images.yml` — deliberately not
+wired to run on every push, given how much more is riding on a production deploy step than a
+CI test run. Deploying is still a manual step on the VM itself:
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Grafana/Prometheus/Tempo aren't exposed publicly — they bind to `127.0.0.1` on the host and
+are reached over an SSH tunnel: `ssh -L 3001:127.0.0.1:3001 <host>`, then
+`http://localhost:3001`.
