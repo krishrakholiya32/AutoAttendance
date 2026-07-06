@@ -7,10 +7,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from prometheus_client import REGISTRY
+
 from app.api import attendance, auth, courses, students
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.logging import configure_logging, get_logger
+from app.core.metrics import QueueDepthCollector
+from app.core.tracing import configure_tracing
 
 configure_logging()
 logger = get_logger(__name__)
@@ -35,6 +39,8 @@ app.add_middleware(
 )
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+REGISTRY.register(QueueDepthCollector())
+configure_tracing("autoattendance-api", fastapi_app=app)
 
 app.include_router(auth.router)
 app.include_router(courses.router)

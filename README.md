@@ -133,6 +133,29 @@ uploads instead of blocking on the old synchronous response, then polls
 `done` or `failed` — matched students and spoofed/unmatched counts render once the job
 actually finishes, whether that's one second or several.
 
+## Observability
+
+The Docker Compose stack ships the standard "three pillars" alongside the app:
+[Prometheus](https://prometheus.io) (metrics), [Loki](https://grafana.com/oss/loki/) +
+[Promtail](https://grafana.com/docs/loki/latest/send-data/promtail/) (logs — Promtail ships
+Docker's own container logs, no parsing pipeline needed since they're already structured JSON
+from `structlog`), [Tempo](https://grafana.com/oss/tempo/) (traces), and
+[Grafana](https://grafana.com/oss/grafana/) with datasources/dashboards provisioned as code
+(`observability/`). One dashboard (`observability/grafana/dashboards/autoattendance.json`)
+covers API request-latency percentiles, face-match-confidence distribution, liveness-reject
+rate (split by `enroll`/`mark` context), and attendance-marking queue depth (`ZCARD
+arq:queue`, exposed as a Prometheus gauge in `app/core/metrics.py`).
+
+Tracing (`opentelemetry-instrumentation-fastapi`/`-httpx`, OTLP export to Tempo) covers the
+API and face-worker automatically, but an arq job crossing the Redis queue boundary doesn't
+carry an HTTP trace header the way a normal request hop would — the enqueueing request
+manually `inject()`s its `traceparent` into the job's arguments
+(`app/api/attendance.py`), and the worker task `extract()`s it back into a parent span
+context before running (`app/tasks/attendance_tasks.py`), so one trace genuinely spans
+request → enqueue → dequeue → face-worker call → DB write, verified end to end against a real
+`mark` request. Tracing is a no-op outside Compose (`OTEL_EXPORTER_OTLP_ENDPOINT` unset) since
+Tempo doesn't exist on the pre-Phase-8 production systemd deploy yet.
+
 ## Deployment
 
 Live at **https://autoattendance.zrik.tech** on Oracle Cloud's Always Free tier

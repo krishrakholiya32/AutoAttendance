@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.metrics import match_confidence
 from app.models.embedding import FaceEmbedding
 from app.models.student import Student
 
@@ -33,4 +34,5 @@ async def find_best_match(
     similarity = 1 - cosine_distance
     if similarity < settings.face_match_threshold:
         return None
+    match_confidence.observe(similarity)
     return student_id, similarity

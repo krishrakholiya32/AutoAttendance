@@ -10,11 +10,15 @@ import cv2
 import numpy as np
 from fastapi import FastAPI, File, UploadFile
 from insightface.app import FaceAnalysis
+from prometheus_client import make_asgi_app
 from pydantic import BaseModel
 
 from liveness import check_liveness
+from tracing import configure_tracing
 
 app = FastAPI(title="AutoAttendance Face Worker")
+app.mount("/metrics", make_asgi_app())
+configure_tracing(app)
 
 _face_app: FaceAnalysis | None = None
 

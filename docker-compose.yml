@@ -51,6 +51,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-only-secret-do-not-use-in-production}
       CORS_ORIGINS: http://localhost:5173
       FACE_WORKER_URL: http://face-worker:8001
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
     volumes:
       - ./backend:/app
     ports:
@@ -74,6 +75,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-dev-only-secret-do-not-use-in-production}
       FACE_WORKER_URL: http://face-worker:8001
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
     volumes:
       - ./backend:/app
     command: arq app.worker.WorkerSettings
@@ -83,12 +85,77 @@ services:
       context: .
       dockerfile: face-worker/Dockerfile
     restart: unless-stopped
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
     volumes:
       - ./face-worker:/app
     ports:
       - "8011:8001"
     command: uvicorn app:app --host 0.0.0.0 --port 8001 --reload
 
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports:
+      - "9090:9090"
+
+  tempo:
+    image: grafana/tempo:latest
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempodata:/var/tempo
+
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - lokidata:/loki
+
+  promtail:
+    image: grafana/promtail:latest
+    restart: unless-stopped
+    # Reads Docker's own json-file container logs via Docker service discovery --
+    # our services already log structured JSON to stdout (Phase 1's structlog
+    # setup), so Promtail just ships lines as-is, no parsing pipeline needed.
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    volumes:
+      - ./observability/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
 volumes:
   pgdata:
   redisdata:
+  promdata:
+  tempodata:
+  lokidata:
+  grafanadata:

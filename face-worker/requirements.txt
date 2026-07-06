@@ -5,6 +5,11 @@ insightface==1.0.1
 onnxruntime==1.27.0
 opencv-python-headless==4.11.0.86
 numpy==2.2.4
+prometheus-client==0.21.1
+opentelemetry-api==1.43.0
+opentelemetry-sdk==1.43.0
+opentelemetry-exporter-otlp-proto-grpc==1.43.0
+opentelemetry-instrumentation-fastapi==0.64b0
 
 # insightface's own setup.py lists "opencv-python" (GUI build) as a
 # dependency, so pip installs it alongside opencv-python-headless above

@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 
+from opentelemetry import trace
+from opentelemetry.propagate import extract
+from opentelemetry.trace import SpanKind
 from sqlalchemy import select
 
 from app.core.database import async_session
@@ -12,15 +15,27 @@ from app.services.face_client import extract_all_embeddings
 from app.services.matching import find_best_match
 
 logger = get_logger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 async def process_attendance_photo(
-    ctx, job_id: int, course_id: int, session_id: int, image_bytes: bytes
+    ctx, job_id: int, course_id: int, session_id: int, image_bytes: bytes, traceparent: str | None = None
 ) -> None:
     """arq task: does the actual face-worker call + pgvector matching that
     used to run synchronously inside the mark-attendance request handler.
     Runs in a separate worker process (backend/app/worker.py), never the API
-    process, so a slow/large classroom photo never blocks a request thread."""
+    process, so a slow/large classroom photo never blocks a request thread.
+
+    `traceparent` carries the enqueueing request's trace context across the
+    Redis boundary (arq jobs aren't HTTP calls, so this doesn't propagate on
+    its own) -- re-attaching it here lets one trace span request -> enqueue ->
+    dequeue -> face-worker -> DB write instead of starting a disconnected one."""
+    parent_ctx = extract({"traceparent": traceparent}) if traceparent else None
+    with tracer.start_as_current_span("process_attendance_photo", context=parent_ctx, kind=SpanKind.CONSUMER):
+        await _process_attendance_photo(job_id, course_id, session_id, image_bytes)
+
+
+async def _process_attendance_photo(job_id: int, course_id: int, session_id: int, image_bytes: bytes) -> None:
     async with async_session() as db:
         job = await db.get(AttendanceJob, job_id)
         job.status = PROCESSING

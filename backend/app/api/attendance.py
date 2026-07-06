@@ -1,6 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from opentelemetry.propagate import inject
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,8 +88,17 @@ async def mark_attendance(
     await db.commit()
     await db.refresh(job)
 
+    # arq jobs cross a Redis boundary, so the current trace context doesn't propagate
+    # automatically the way an outgoing HTTP header would -- inject it into a plain
+    # dict now and re-attach it as the parent span when the worker picks the job up,
+    # so one trace can span request -> enqueue -> dequeue -> face-worker -> DB write.
+    carrier: dict[str, str] = {}
+    inject(carrier)
+
     redis = await get_redis_pool()
-    await redis.enqueue_job("process_attendance_photo", job.id, course_id, session_id, image_bytes)
+    await redis.enqueue_job(
+        "process_attendance_photo", job.id, course_id, session_id, image_bytes, carrier.get("traceparent")
+    )
 
     return MarkJobAccepted(job_id=job.id, status=job.status)
 

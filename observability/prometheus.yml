@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: autoattendance-api
+    static_configs:
+      - targets: ["api:8000"]
+    metrics_path: /metrics
+
+  - job_name: autoattendance-face-worker
+    static_configs:
+      - targets: ["face-worker:8001"]
+    metrics_path: /metrics
+
+  - job_name: autoattendance-arq-worker
+    static_configs:
+      - targets: ["arq-worker:8002"]
+    metrics_path: /metrics

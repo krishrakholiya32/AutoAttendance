@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     max_embeddings_per_student: int = 5
     face_worker_url: str = "http://face-worker:8001"
     redis_url: str = "redis://redis:6379/0"
+    # Empty disables tracing entirely -- see app/core/tracing.py's docstring.
+    otel_exporter_otlp_endpoint: str = ""
 
     @field_validator("database_url", mode="before")
     @classmethod
