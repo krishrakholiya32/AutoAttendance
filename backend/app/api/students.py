@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_professor
 from app.core.logging import get_logger
 from app.core.metrics import liveness_reject_total
+from app.core.uploads import read_capped
 from app.models.embedding import FaceEmbedding
 from app.models.professor import Professor
 from app.models.student import Student
@@ -91,7 +92,7 @@ async def enroll_face(
 ):
     student = await _get_owned_student(course_id, student_id, professor, db)
 
-    image_bytes = await file.read()
+    image_bytes = await read_capped(file)
     detected = await extract_single_embedding(image_bytes)
     if detected is None:
         raise HTTPException(status_code=422, detail="No face detected in image")

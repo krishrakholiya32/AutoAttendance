@@ -9,6 +9,7 @@ from app.api.courses import _get_owned_course
 from app.core.database import get_db
 from app.core.deps import get_current_professor
 from app.core.logging import get_logger
+from app.core.uploads import read_capped
 from app.models.attendance import AttendanceRecord, AttendanceSession
 from app.models.attendance_job import PENDING, AttendanceJob
 from app.models.professor import Professor
@@ -82,7 +83,7 @@ async def mark_attendance(
     Poll GET .../jobs/{job_id} for the result."""
     await _get_owned_session(course_id, session_id, professor, db)
 
-    image_bytes = await file.read()
+    image_bytes = await read_capped(file)
     job = AttendanceJob(session_id=session_id, status=PENDING)
     db.add(job)
     await db.commit()

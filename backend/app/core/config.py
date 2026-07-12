@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # onto the closest enrolled student.
     face_match_threshold: float = 0.32
     max_embeddings_per_student: int = 5
+    # Enforced incrementally while streaming the upload into memory (see
+    # app/core/uploads.py), not after buffering the whole body -- a face/
+    # classroom photo has no legitimate reason to be this large.
+    max_image_upload_mb: int = 15
     face_worker_url: str = "http://face-worker:8001"
     redis_url: str = "redis://redis:6379/0"
     # Empty disables tracing entirely -- see app/core/tracing.py's docstring.
