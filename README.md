@@ -221,3 +221,7 @@ docker compose -f docker-compose.prod.yml up -d
 Grafana/Prometheus/Tempo aren't exposed publicly — they bind to `127.0.0.1` on the host and
 are reached over an SSH tunnel: `ssh -L 3001:127.0.0.1:3001 <host>`, then
 `http://localhost:3001`.
+
+## License
+
+[MIT](LICENSE)
