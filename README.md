@@ -7,6 +7,10 @@ in one shot, scoped to that course's roster only.
 
 ## Demo
 
+![AutoAttendance Demo](docs/demo.gif)
+
+Try it live at **[autoattendance.zrik.tech](https://autoattendance.zrik.tech)**
+
 <table>
   <tr>
     <td><img src="docs/screenshots/1-landing-signup.png" alt="Signup" width="100%"></td>
